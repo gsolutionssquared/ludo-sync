@@ -25,14 +25,14 @@ export default function GarageClient() {
   const done = status.filter(s => s.done).length;
   const cars = VEHICLES.filter(v => v !== "none");
   return (
-    <Flex minH="100dvh" bg="#303030" color="white" justify="center" px={3} pt="max(12px, env(safe-area-inset-top))" pb="max(24px, env(safe-area-inset-bottom))">
+    <Flex minH="100dvh" bg="transparent" color="white" justify="center" px={3} pt="max(12px, env(safe-area-inset-top))" pb="max(24px, env(safe-area-inset-bottom))">
       <VStack w="100%" maxW="640px" align="stretch" spacing={5} as="main">
         <HStack>
           <IconButton as={Link} href="/ludo" aria-label="Back to menu" icon={<ChevronLeftIcon boxSize={6} />} variant="ghost" color="white" />
           <Heading as="h1" size="md">Garage</Heading>
         </HStack>
 
-        <SimpleGrid columns={{ base: 3, sm: 5 }} gap={2}>
+        <SimpleGrid columns={{ base: 2, sm: 5 }} gap={2} sx={{ "& > :last-child:nth-child(odd)": { gridColumn: { base: "1 / -1", sm: "auto" } } }}>
           <Tile label="Played" value={stats.played} />
           <Tile label="Won" value={stats.won} />
           <Tile label="Win streak" value={stats.streak} />

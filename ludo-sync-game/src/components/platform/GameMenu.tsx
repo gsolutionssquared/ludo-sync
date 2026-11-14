@@ -16,6 +16,7 @@ import { RulesPanel } from "./RulesPanel";
 import { Shell, Notice, BG } from "./Shell";
 import { HowTo } from "./TableFrame";
 import { loadSaved, setupKey, type LocalSetup } from "./useLocalTable";
+import { clearHostRoom, clearRoom, loadHostRoom, loadRoom } from "./useGameOnline";
 
 const BOT_NAMES = ["Mia", "Leo", "Ava", "Max", "Zoe", "Kai", "Ivy", "Sam", "Eli"];
 
@@ -30,6 +31,7 @@ export default function GameMenu({ gameId }: { gameId: string }) {
   const [rules, setRules] = useState<RuleValues>({});
   const [passNames, setPassNames] = useState<string[]>(["", ""]);
   const [resume, setResume] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<{ guest: string | null; host: string | null }>({ guest: null, host: null });
   const [streak, setStreak] = useState<{ n: number; level: string; best: number } | null>(null);
 
   useEffect(() => {
@@ -42,6 +44,8 @@ export default function GameMenu({ gameId }: { gameId: string }) {
       setPassNames(Array.from({ length: m.driver.minPlayers }, () => ""));
       const s = loadSaved(gameId);
       setResume(s ? s.seats.map(x => x.name).join(" · ") : null);
+      const gr = loadRoom(gameId), hr = loadHostRoom(gameId);
+      setRooms({ guest: gr ? gr.code : null, host: hr ? hr.save.code : null });
       const h = headline(loadBook(), gameId);
       setStreak({ n: h.record.current, level: h.level, best: h.record.best });
     });
@@ -68,7 +72,7 @@ export default function GameMenu({ gameId }: { gameId: string }) {
 
   return (
     <Shell title={d.name} onBack={() => router.push("/")} accent={mod.accent} pinId={gameId}>
-      <Text color="gray.300">{mod.tagline}</Text>
+      <Text color="gray.300" fontSize="md" lineHeight="1.5">{mod.tagline}</Text>
       <HStack wrap="wrap">
         <Badge colorScheme="purple">{d.minPlayers} to {d.maxPlayers} players</Badge>
         {d.hidden && <Badge>hidden hands</Badge>}
@@ -79,21 +83,38 @@ export default function GameMenu({ gameId }: { gameId: string }) {
 
       {resume && <Button colorScheme="orange" size="lg" onClick={go(`/g/${gameId}/play?resume=1`)}>Resume game<Text as="span" fontSize="xs" ml={2} noOfLines={1}>{resume}</Text></Button>}
 
-      <VStack align="stretch" spacing={3} bg="whiteAlpha.100" borderRadius="xl" p={4} as="section" aria-label="Play against bots">
-        <Text fontWeight={800}>Play against bots</Text>
-        <Input value={name} maxLength={20} onChange={e => setName(e.target.value)} bg="gray.700" border="none" aria-label="Your name" placeholder="Your name" />
+      {(rooms.guest || rooms.host) && (
+        <VStack align="stretch" spacing={2} as="section" aria-label="Online games to return to">
+          {rooms.host && (
+            <HStack spacing={2} align="stretch">
+              <Button flex={1} colorScheme="orange" size="lg" h="auto" py={3} onClick={go(`/g/${gameId}/online?reopen=1`)}><VStack spacing={0}><Text>Reopen your online room</Text><Text fontSize="xs" fontWeight={400}>Room {rooms.host.slice(0, 3)}-{rooms.host.slice(3)} · you are hosting</Text></VStack></Button>
+              <Button variant="outline" h="auto" aria-label="Forget this room" title="Forget this room" onClick={() => { clearHostRoom(gameId); setRooms(r => ({ ...r, host: null })); }}>✕</Button>
+            </HStack>
+          )}
+          {rooms.guest && (
+            <HStack spacing={2} align="stretch">
+              <Button flex={1} colorScheme="orange" size="lg" h="auto" py={3} onClick={go(`/g/${gameId}/online?rejoin=1`)}><VStack spacing={0}><Text>Rejoin online game</Text><Text fontSize="xs" fontWeight={400}>Room {rooms.guest.slice(0, 3)}-{rooms.guest.slice(3)}</Text></VStack></Button>
+              <Button variant="outline" h="auto" aria-label="Forget this online game" title="Forget this online game" onClick={() => { clearRoom(gameId); setRooms(r => ({ ...r, guest: null })); }}>✕</Button>
+            </HStack>
+          )}
+        </VStack>
+      )}
+
+      <VStack align="stretch" spacing={3} bg="whiteAlpha.100" border="1px solid" borderColor="whiteAlpha.200" boxShadow="card" borderRadius="2xl" p={4} as="section" aria-label="Play against bots">
+        <Text fontWeight={800} fontSize="lg">Play against bots</Text>
+        <Input value={name} maxLength={20} onChange={e => setName(e.target.value)} aria-label="Your name" placeholder="Your name" />
         <HStack>
-          <Select bg="gray.700" aria-label="Number of bots" value={bots} onChange={e => setBots(Number(e.target.value))}>
+          <Select aria-label="Number of bots" value={bots} onChange={e => setBots(Number(e.target.value))}>
             {Array.from({ length: d.maxPlayers }, (_, i) => i).filter(n => n + 1 >= d.minPlayers && n <= d.maxPlayers - 1).map(n => <option key={n} value={n}>{n === 0 ? "No bots (solo)" : `${n} bot${n === 1 ? "" : "s"}`}</option>)}
           </Select>
-          <Select bg="gray.700" aria-label="Bot level" value={level} onChange={e => setLevel(e.target.value as BotLevel)}>
+          <Select aria-label="Bot level" value={level} onChange={e => setLevel(e.target.value as BotLevel)}>
             <option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option>
           </Select>
         </HStack>
         <Button colorScheme="yellow" size="lg" onClick={playBots}>Play</Button>
       </VStack>
 
-      <VStack align="stretch" spacing={2} bg="whiteAlpha.100" borderRadius="xl" p={4} as="section" aria-label="Rules">
+      <VStack align="stretch" spacing={2} bg="whiteAlpha.100" border="1px solid" borderColor="whiteAlpha.200" boxShadow="card" borderRadius="2xl" p={4} as="section" aria-label="Rules">
         <HStack justify="space-between">
           <Box minW={0}><Text fontWeight={800}>Rules: you decide</Text><Text fontSize="xs" color="gray.400" noOfLines={2}>{lines.length ? lines.join(" · ") : "Standard rules"}</Text></Box>
           <Button size="sm" variant="outline" color="white" onClick={rulesBox.onToggle} aria-expanded={rulesBox.isOpen}>{rulesBox.isOpen ? "Done" : "Change"}</Button>
@@ -104,9 +125,9 @@ export default function GameMenu({ gameId }: { gameId: string }) {
       </VStack>
 
       {!d.noHotseat && d.maxPlayers > 1 && (
-      <VStack align="stretch" spacing={2} bg="whiteAlpha.100" borderRadius="xl" p={4} as="section" aria-label="Pass and play">
-        <Text fontWeight={800}>Pass and play on one device</Text>
-        {passNames.map((n, i) => <Input key={i} value={n} maxLength={20} placeholder={`Player ${i + 1}`} bg="gray.700" border="none" aria-label={`Player ${i + 1} name`} onChange={e => setPassNames(l => l.map((x, j) => (j === i ? e.target.value : x)))} />)}
+      <VStack align="stretch" spacing={2} bg="whiteAlpha.100" border="1px solid" borderColor="whiteAlpha.200" boxShadow="card" borderRadius="2xl" p={4} as="section" aria-label="Pass and play">
+        <Text fontWeight={800} fontSize="lg">Pass and play on one device</Text>
+        {passNames.map((n, i) => <Input key={i} value={n} maxLength={20} placeholder={`Player ${i + 1}`} aria-label={`Player ${i + 1} name`} onChange={e => setPassNames(l => l.map((x, j) => (j === i ? e.target.value : x)))} />)}
         <HStack>
           <Button size="sm" variant="outline" color="white" isDisabled={passNames.length >= d.maxPlayers} onClick={() => setPassNames(l => [...l, ""])}>Add a player</Button>
           <Button size="sm" variant="outline" color="white" isDisabled={passNames.length <= d.minPlayers} onClick={() => setPassNames(l => l.slice(0, -1))}>Remove one</Button>
